@@ -1188,21 +1188,24 @@ export default class IBMiContent {
   }
 
   async getLibraryListFromCommand(command: string) {
+    console.log(`[getLibraryListFromCommand] Executing command: ${command}`);
     //Run the command in the same query as QSQLIBL so there is no concurrency issues with other pending statements
     const libraryList = await this.ibmi.runSQL(
-      `With CHGLIBL(SYSTEM_SCHEMA_NAME, TYPE, ORDINAL_POSITION) as ( values (cast(QSYS2.qcmdexc('${command.replace(new RegExp(`'`, 'g'), `''`)}') as Char(1)), 'RESULT', 0 ) )
+      `With CHGLIBL(SYSTEM_SCHEMA_NAME, TYPE, ORDINAL_POSITION) as ( values (cast(QSYS2.qcmdexc('${command.replace(new RegExp(`'`, 'g'), `''`)}') as Varchar(10)), 'RESULT', 0 ) )
       SELECT SYSTEM_SCHEMA_NAME, TYPE, ORDINAL_POSITION From CHGLIBL
       union all
       SELECT SYSTEM_SCHEMA_NAME, TYPE, ORDINAL_POSITION FROM TABLE(QSYS2.QSQLIBL())
       ORDER BY ORDINAL_POSITION
     `);
     return libraryList.reduce((result, row) => {
-      const libraryName = String(row.SYSTEM_SCHEMA_NAME);
+      const libraryName = String(row.SYSTEM_SCHEMA_NAME).trim();
       switch (row.TYPE) {
         case 'RESULT':
           if (libraryName !== '1') {
-            throw new Error(`Failed to run Library List Command ${command}`);
+            console.log(`[getLibraryListFromCommand] qcmdexc returned: '${libraryName}' for command: ${command}`);
+            throw new Error(`Failed to run Library List Command ${command} (qcmdexc returned ${libraryName})`);
           }
+          break;
         case 'CURRENT':
           result.currentLibrary = libraryName;
           break;
